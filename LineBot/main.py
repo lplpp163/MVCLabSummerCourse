@@ -67,6 +67,15 @@ async def callback(request: Request):
         raise HTTPException(404, detail='LineBot Handle Body Error !')
     return 'OK'
 
+# check if s is num (include negative num)
+def isnum(s):
+    try:
+        float(s)
+    except:
+        return(False)
+    else:
+        return(True)
+
 # All message events are handling at here !
 @handler.add(MessageEvent, message=TextMessage)
 def handle_textmessage(event):
@@ -89,8 +98,10 @@ def handle_textmessage(event):
     op=''
     isNext = False
     OP = ['+','-','*','/']
-    for ch in case_:
-        if isNext:
+    for i, ch in enumerate(case_):
+        if i==0 and ch=='-':
+            a=ch
+        elif isNext:
             b+=ch
         elif ch in OP:
             op=ch
@@ -99,7 +110,7 @@ def handle_textmessage(event):
             a+=ch
     
     # error handle
-    if not a.isnumeric() or not b.isnumeric() or op=='' :
+    if not isnum(a) or not isnum(b) or op=='' :
         My_LineBotAPI.reply_message(
             event.reply_token,
             TextSendMessage(text='Wrong Formula')

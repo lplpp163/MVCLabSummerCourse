@@ -15,7 +15,7 @@ Calculator, Random Sticker Message
   - `-`
   - `*`
   - `/`
-- input
+- input (a,b can be negative)
   - `a+b`
   - `a + b`
   - `a+b =`
