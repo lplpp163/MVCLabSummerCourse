@@ -1,4 +1,4 @@
-# LineBot
+# LineBot Calculator
 
 * **How to run**
     * **Step 1: Install Python Packages**
