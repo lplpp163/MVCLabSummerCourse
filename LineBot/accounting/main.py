@@ -32,7 +32,9 @@ init DB
 """
 class DB():
     def __init__(self, ip, port, user, password, db_name):
-        self.client = InfluxDBClient(ip, port, user, password, db_name) 
+        self.client = InfluxDBClient(ip, port, user, password, db_name)
+        #self.client.drop_database(db_name)
+        self.client.create_database(db_name)
         print('Influx DB init.....')
 
     def insertData(self, data):
@@ -53,6 +55,7 @@ class DB():
         [query] should be a SQL like query string
         """
         return self.client.query(query)
+
 
 # Init a Influx DB and connect to it
 db = DB('127.0.0.1', 8086, 'root', '', 'accounting_db')
@@ -113,6 +116,15 @@ def handle_textmessage(event):
    
     # Case NOTE
     if re.match(my_event[0], case_):
+        if len(recieve_message)!=4:
+            My_LineBotAPI.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text='Wrong command!'
+                )
+            )
+            return
+
         # cmd: #note [事件] [+/-] [錢]
         event_ = recieve_message[1]
         op = recieve_message[2]
@@ -145,6 +157,13 @@ def handle_textmessage(event):
                     text="Write to DB Successfully!"
                 )
             )
+        else :
+            My_LineBotAPI.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text="Wrong command!"
+                )
+            )
 
     # Case REPORT
     elif re.match(my_event[1], case_):
@@ -154,31 +173,48 @@ def handle_textmessage(event):
         select * from accounting_items 
         """
         result = db.queryData(query_str)
-        points = result.get_points(tags={'user': str(user_id)})
-        
-        reply_text = ''
-        for i, point in enumerate(points):
-            time = point['time']
-            event_ = point['event']
-            money = point['money']
-            reply_text += f'[{i}] -> [{time}] : {event_}   {money}\n'
+        try:
+            points = result.get_points(tags={'user': str(user_id)})
+            reply_text = ''
+            for i, point in enumerate(points):
+                time = point['time']
+                event_ = point['event']
+                money = point['money']
+                reply_text += f'[{i}] -> [{time}] : {event_}   {money}\n'
 
-        My_LineBotAPI.reply_message(
-            event.reply_token,
-            TextSendMessage(
-                text=reply_text
+            My_LineBotAPI.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text=reply_text
+                )
             )
-        )
+        except:
+            My_LineBotAPI.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text='empty'
+                )
+            )
+        
     # DELETE
     elif re.match(my_event[2], case_):
+        if len(recieve_message)!=2:
+            My_LineBotAPI.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text='Wrong command!'
+                )
+            )
+            return
+
         item = recieve_message[1]
 
-        # get user id
-        user_id = event.source.user_id
-        query_str = f"delete from accounting_items where event=\"{item}\""
-        result = db.queryData(query_str)
-        points = result.get_points(tags={'user': str(user_id)})
-        print (points)
+
+        db.queryData(f"SELECT * INTO metrics_clean FROM accounting_items WHERE \"event\"!=\'{item}\' group by *")
+        db.queryData("DROP measurement accounting_items")
+        result =db.queryData("SELECT * INTO accounting_items FROM metrics_clean group by *")
+        db.queryData("DROP measurement metrics_clean")
+
         My_LineBotAPI.reply_message(
             event.reply_token,
             TextSendMessage(
@@ -187,27 +223,33 @@ def handle_textmessage(event):
         )
     # SUM
     elif re.match(my_event[3], case_):
+        if len(recieve_message)!=2:
+            My_LineBotAPI.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text='Wrong command!'
+                )
+            )
+            return
+
         t_shift = recieve_message[1]
         d = datetime.utcnow() - timedelta(days=int(t_shift))
-        d = d.isoformat("T") + "Z"
         
         # get user id
         user_id = event.source.user_id
-        query_str = f"select * from accounting_items where time>\"{item}\""
+        query_str = f"select * from accounting_items where time>=\'{d}\'"
         result = db.queryData(query_str)
         points = result.get_points(tags={'user': str(user_id)})
         
-        reply_text = ''
+        sum=0
         for i, point in enumerate(points):
-            time = point['time']
-            event_ = point['event']
             money = point['money']
-            reply_text += f'[{i}] -> [{time}] : {event_}   {money}\n'
+            sum+=int(money)
 
         My_LineBotAPI.reply_message(
             event.reply_token,
             TextSendMessage(
-                text=reply_text
+                text="sum: "+str(sum)
             )
         )
 
